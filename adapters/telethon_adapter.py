@@ -154,5 +154,3 @@ class TelethonAdapter:
         except (ValueError, FileNotFoundError) as e:
             logging.error("Session file conversion failed: %s", e)
             raise
-
-
