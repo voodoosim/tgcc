@@ -1,3 +1,4 @@
+# adapters/telethon_adapter.py
 import base64
 import logging
 from pathlib import Path
@@ -64,10 +65,10 @@ class TelethonAdapter:
         finally:
             if client and client.is_connected():
                 try:
-                    await client.disconnect()
-                except Exception:
-                    # None이 반환될 경우 예외 처리
-                    pass
+                    await client.disconnect() if client else None if client else None
+                except RuntimeError:
+                    # 연결 종료 시 발생할 수 있는 예외 처리
+                    logging.debug("Error disconnecting client")
 
     async def complete_auth(
         self, phone: str, api_id: int, api_hash: str, code: str, phone_code_hash: str
@@ -103,10 +104,10 @@ class TelethonAdapter:
         finally:
             if client and client.is_connected():
                 try:
-                    await client.disconnect()
-                except Exception:
-                    # None이 반환될 경우 예외 처리
-                    pass
+                    await client.disconnect() if client else None if client else None
+                except RuntimeError:
+                    # 연결 종료 시 발생할 수 있는 예외 처리
+                    logging.debug("Error disconnecting client")
 
     async def validate_session(
         self, session_file: Path, api_id: int, api_hash: str
@@ -126,10 +127,10 @@ class TelethonAdapter:
         finally:
             if client and client.is_connected():
                 try:
-                    await client.disconnect()
-                except Exception:
-                    # None이 반환될 경우 예외 처리
-                    pass
+                    await client.disconnect() if client else None if client else None
+                except RuntimeError:
+                    # 연결 종료 시 발생할 수 있는 예외 처리
+                    logging.debug("Error disconnecting client")
 
     def session_to_string(self, session_file: Path) -> str:
         """세션 파일을 Base64 문자열로 변환"""
@@ -153,3 +154,5 @@ class TelethonAdapter:
         except (ValueError, FileNotFoundError) as e:
             logging.error("Session file conversion failed: %s", e)
             raise
+
+

@@ -1,0 +1,24 @@
+[MASTER]
+extension-pkg-whitelist=PyQt5
+generated-members=PyQt5.*
+
+[MESSAGES CONTROL]
+disable=
+    C0111,
+    R0903,
+    R0913,
+    W0511,
+    W0613,
+    W0612
+
+[FORMAT]
+max-line-length=100
+indent-string='    '
+
+[LOGGING]
+logging-format-style=old
+
+[EXCEPTIONS]
+overgeneral-exceptions=
+    builtins.BaseException,
+    builtins.Exception
