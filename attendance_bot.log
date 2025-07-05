@@ -1,0 +1,8 @@
+2025-07-05 14:01:01,679 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:01:01,681 - attendance_bot.db - INFO - Attendance recorded for user test_user_123 on 2025-07-05
+2025-07-05 14:04:09,503 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:04:09,504 - attendance_bot.db - INFO - Attendance recorded for user user1 on 2025-07-05
+2025-07-05 14:04:09,506 - attendance_bot.db - INFO - Attendance recorded for user user2 on 2025-07-05
+2025-07-05 14:04:09,507 - attendance_bot.db - INFO - Attendance recorded for user user3 on 2025-07-05
+2025-07-05 14:04:09,507 - attendance_bot.db - INFO - User user1 already attended on 2025-07-05
+2025-07-05 14:04:09,511 - attendance_bot.db - INFO - Database initialized successfully
