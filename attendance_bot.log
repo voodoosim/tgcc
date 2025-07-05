@@ -6,3 +6,20 @@
 2025-07-05 14:04:09,507 - attendance_bot.db - INFO - Attendance recorded for user user3 on 2025-07-05
 2025-07-05 14:04:09,507 - attendance_bot.db - INFO - User user1 already attended on 2025-07-05
 2025-07-05 14:04:09,511 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:05:13,441 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:05:13,444 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-07-05
+2025-07-05 14:05:13,446 - attendance_bot.db - INFO - Attendance recorded for user 987654321 on 2025-07-05
+2025-07-05 14:05:13,448 - attendance_bot.db - INFO - Attendance recorded for user 555666777 on 2025-07-05
+2025-07-05 14:05:13,451 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-07-04
+2025-07-05 14:05:13,452 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-07-03
+2025-07-05 14:05:13,453 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-07-02
+2025-07-05 14:05:13,455 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-07-01
+2025-07-05 14:05:13,456 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-06-30
+2025-07-05 14:05:13,458 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-06-29
+2025-07-05 14:05:13,459 - attendance_bot.db - INFO - Attendance recorded for user 123456789 on 2025-06-28
+2025-07-05 14:05:49,874 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:05:49,875 - attendance_bot.db - ERROR - Failed to record attendance: no such table: attendance
+2025-07-05 14:05:50,338 - pyrogram.crypto.aes - WARNING - TgCrypto is missing! Pyrogram will work the same, but at a much slower speed. More info: https://docs.pyrogram.org/topics/speedups
+2025-07-05 14:05:50,397 - telethon.crypto.aes - INFO - libssl detected, it will be used for encryption
+2025-07-05 14:05:59,493 - attendance_bot.db - INFO - Database initialized successfully
+2025-07-05 14:05:59,494 - attendance_bot.db - INFO - Attendance recorded for user test on 2025-07-05
