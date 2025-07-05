@@ -1,11 +1,9 @@
 import json
 import logging
-from typing import List, Dict, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class Config:
@@ -20,7 +18,7 @@ class Config:
         try:
             self.config_file.parent.mkdir(exist_ok=True)
             if self.config_file.exists():
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             config: Dict[str, List[Dict[str, str]]] = {"api_credentials": []}
             self._save_config(config)
@@ -32,14 +30,12 @@ class Config:
             logging.error("Permission denied accessing config file: %s", e)
             return {"api_credentials": []}
 
-    def _save_config(
-        self, config: Optional[Dict[str, List[Dict[str, str]]]] = None
-    ) -> bool:
+    def _save_config(self, config: Optional[Dict[str, List[Dict[str, str]]]] = None) -> bool:
         """config.json 저장"""
         try:
             if config is None:
                 config = self._config
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
             return True
         except PermissionError as e:
@@ -69,9 +65,7 @@ class Config:
                     return False
 
             # 새 자격증명 추가
-            self._config["api_credentials"].append(
-                {"name": name, "api_id": str(api_id_int), "api_hash": api_hash}
-            )
+            self._config["api_credentials"].append({"name": name, "api_id": str(api_id_int), "api_hash": api_hash})
 
             # 저장
             success = self._save_config(self._config)

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Union, Optional
+from typing import Dict, Optional, Union
 
 import pyperclip
 from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, Qt, QThread, pyqtSignal
@@ -28,9 +28,7 @@ from adapters.pyrogram_adapter import PyrogramAdapter
 from adapters.telethon_adapter import TelethonAdapter
 from core.config import Config
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def normalize_phone_number(phone: str) -> Optional[str]:
@@ -44,17 +42,17 @@ def normalize_phone_number(phone: str) -> Optional[str]:
         return None
 
     # + 기호를 임시로 보관
-    has_plus = phone.startswith('+')
+    has_plus = phone.startswith("+")
 
     # 숫자만 추출
-    digits = re.sub(r'[^\d]', '', phone)
+    digits = re.sub(r"[^\d]", "", phone)
 
     if not digits:
         return None
 
     # + 기호 복원
     if has_plus:
-        return '+' + digits
+        return "+" + digits
 
     return digits
 
@@ -70,7 +68,7 @@ def validate_phone_number(phone: str) -> bool:
         return False
 
     # + 제거하고 검사
-    digits = normalized.lstrip('+')
+    digits = normalized.lstrip("+")
 
     # 최소 7자리, 최대 15자리
     return digits.isdigit() and 7 <= len(digits) <= 15
@@ -463,21 +461,15 @@ class MainWindow(QMainWindow):
 
     def add_new_api(self):
         """새 API 자격증명 추가"""
-        name, ok = QInputDialog.getText(
-            self, "API 자격증명 추가", "이 API의 이름을 입력하세요:"
-        )
+        name, ok = QInputDialog.getText(self, "API 자격증명 추가", "이 API의 이름을 입력하세요:")
         if not ok or not name:
             return
 
-        api_id, ok = QInputDialog.getText(
-            self, "API 자격증명 추가", "API ID를 입력하세요:"
-        )
+        api_id, ok = QInputDialog.getText(self, "API 자격증명 추가", "API ID를 입력하세요:")
         if not ok or not api_id:
             return
 
-        api_hash, ok = QInputDialog.getText(
-            self, "API 자격증명 추가", "API Hash를 입력하세요:"
-        )
+        api_hash, ok = QInputDialog.getText(self, "API 자격증명 추가", "API Hash를 입력하세요:")
         if not ok or not api_hash:
             return
 
@@ -504,15 +496,14 @@ class MainWindow(QMainWindow):
 
         # 현재 시간 추가
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%H:%M:%S")
 
         formatted_msg = f'<span style="color: #666666;">[{timestamp}]</span> <span style="color: {color}; font-weight: bold;">{icon} [{level}]</span> {message}'
         self.log_area.append(formatted_msg)
 
         # 자동 스크롤
-        self.log_area.verticalScrollBar().setValue(
-            self.log_area.verticalScrollBar().maximum()
-        )
+        self.log_area.verticalScrollBar().setValue(self.log_area.verticalScrollBar().maximum())
 
     def create_session(self):
         phone = self.phone_input.text().strip()
@@ -538,15 +529,9 @@ class MainWindow(QMainWindow):
         self.log(f"{phone}에 대한 세션 생성 중... ({library} 사용)", "INFO")
         self.log(f"사용 API: {api_cred['name']} ({api_cred['api_id']})", "INFO")
 
-        worker = AsyncWorker(
-            adapter.create_session(phone, int(api_cred["api_id"]), api_cred["api_hash"])
-        )
-        worker.result.connect(
-            lambda result: self.handle_create_session(result, phone, api_cred, library)
-        )
-        worker.error.connect(
-            lambda e: self.log(f"세션 생성 실패: {e}", "ERROR")
-        )
+        worker = AsyncWorker(adapter.create_session(phone, int(api_cred["api_id"]), api_cred["api_hash"]))
+        worker.result.connect(lambda result: self.handle_create_session(result, phone, api_cred, library))
+        worker.error.connect(lambda e: self.log(f"세션 생성 실패: {e}", "ERROR"))
         worker.start()
 
     def handle_create_session(
@@ -567,9 +552,7 @@ class MainWindow(QMainWindow):
                 self.log("세션 생성이 취소되었습니다", "WARNING")
                 return
 
-        code, ok = QInputDialog.getText(
-            self, "인증 코드", "텔레그램으로 전송된 코드를 입력하세요:"
-        )
+        code, ok = QInputDialog.getText(self, "인증 코드", "텔레그램으로 전송된 코드를 입력하세요:")
         if not ok or not code:
             self.log("인증이 취소되었습니다", "WARNING")
             return
@@ -584,9 +567,7 @@ class MainWindow(QMainWindow):
                 result["phone_code_hash"],
             )
         )
-        worker.result.connect(
-            lambda auth_result: self.handle_auth_complete(auth_result, phone)
-        )
+        worker.result.connect(lambda auth_result: self.handle_auth_complete(auth_result, phone))
         worker.error.connect(lambda e: self.log(f"인증 실패: {e}", "ERROR"))
         worker.start()
 
@@ -594,7 +575,7 @@ class MainWindow(QMainWindow):
         """인증 완료 처리"""
         self.log("✨ 세션이 성공적으로 생성되었습니다!", "SUCCESS")
         self.log(f"사용자 ID: {auth_result['user_id']}", "INFO")
-        self.log(f"사용자명: @{auth_result['username']}" if auth_result['username'] else "사용자명: 설정되지 않음", "INFO")
+        self.log(f"사용자명: @{auth_result['username']}" if auth_result["username"] else "사용자명: 설정되지 않음", "INFO")
         self.log(f"전화번호: {auth_result['phone']}", "INFO")
 
     def validate_session(self):
@@ -622,14 +603,8 @@ class MainWindow(QMainWindow):
         self.log(f"파일 확인: {session_file}", "INFO")
         self.log(f"사용 API: {api_cred['name']} ({api_cred['api_id']})", "INFO")
 
-        worker = AsyncWorker(
-            adapter.validate_session(
-                session_file, int(api_cred["api_id"]), api_cred["api_hash"]
-            )
-        )
-        worker.result.connect(
-            lambda valid: self.handle_validation_result(valid, phone, session_file)
-        )
+        worker = AsyncWorker(adapter.validate_session(session_file, int(api_cred["api_id"]), api_cred["api_hash"]))
+        worker.result.connect(lambda valid: self.handle_validation_result(valid, phone, session_file))
         worker.error.connect(lambda e: self.log(f"검증 실패: {e}", "ERROR"))
         worker.start()
 
@@ -679,9 +654,7 @@ class MainWindow(QMainWindow):
             self.log(f"세션 문자열 복사 실패: {e}", "ERROR")
 
     def import_session(self):
-        string, ok = QInputDialog.getText(
-            self, "세션 가져오기", "세션 문자열을 여기에 붙여넣으세요:"
-        )
+        string, ok = QInputDialog.getText(self, "세션 가져오기", "세션 문자열을 여기에 붙여넣으세요:")
         if not ok or not string:
             self.log("가져오기가 취소되었습니다", "WARNING")
             return

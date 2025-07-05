@@ -1,25 +1,20 @@
 #!/usr/bin/env python
 """
-베로니카 프로젝트 런처
-프로젝트 루트에서 간단히 실행할 수 있도록 하는 런처 스크립트
+Veronica Project Launcher
+Simple launcher script to run from project root
 """
 import sys
 from pathlib import Path
 
-# 프로젝트 루트를 Python 경로에 추가
+# Add project root to Python path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# ui.main 모듈 임포트 및 실행
 if __name__ == "__main__":
     try:
-        from ui.main import MainWindow, QApplication
+        from ui.main import main
 
-        app = QApplication(sys.argv)
-        app.setStyle("Fusion")
-        window = MainWindow()
-        window.show()
-        sys.exit(app.exec_())
+        main()
 
     except ImportError as e:
         print(f"Error importing required modules: {e}")

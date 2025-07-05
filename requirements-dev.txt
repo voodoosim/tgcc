@@ -1,0 +1,11 @@
+# Development tools
+black==23.12.1
+ruff==0.1.9  
+mypy==1.8.0
+pylint==3.0.3
+isort==5.13.2
+autoflake==2.2.1
+
+# Type stubs
+types-pyperclip
+PyQt5-stubs

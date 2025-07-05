@@ -5,12 +5,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from telethon import TelegramClient
-from telethon.errors import (
-    FloodWaitError,
-    PhoneCodeInvalidError,
-    SessionPasswordNeededError,
-    UnauthorizedError,
-)
+from telethon.errors import FloodWaitError, PhoneCodeInvalidError, SessionPasswordNeededError, UnauthorizedError
 from telethon.tl.types import User
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

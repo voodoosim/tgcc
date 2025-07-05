@@ -203,20 +203,10 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 """
 
 # 로그 레벨별 색상
-LOG_COLORS = {
-    "INFO": "#5c7cfa",
-    "SUCCESS": "#37b24d",
-    "WARNING": "#f59f00",
-    "ERROR": "#f03e3e"
-}
+LOG_COLORS = {"INFO": "#5c7cfa", "SUCCESS": "#37b24d", "WARNING": "#f59f00", "ERROR": "#f03e3e"}
 
 # 로그 레벨별 아이콘
-LOG_ICONS = {
-    "INFO": "ℹ",
-    "SUCCESS": "✓",
-    "WARNING": "⚠",
-    "ERROR": "✗"
-}
+LOG_ICONS = {"INFO": "ℹ", "SUCCESS": "✓", "WARNING": "⚠", "ERROR": "✗"}
 
 # UI 텍스트
 UI_TEXTS = {
@@ -260,5 +250,5 @@ UI_TEXTS = {
     "SELECT_FILE": "파일 선택",
     "SESSION_FILES": "세션 파일 (*.session)",
     "LOAD_SESSION": "📂 세션 파일 열기",
-    "SESSION_LOADED": "세션 파일을 불러왔습니다"
+    "SESSION_LOADED": "세션 파일을 불러왔습니다",
 }
