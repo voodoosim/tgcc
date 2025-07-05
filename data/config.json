@@ -1,0 +1,19 @@
+{
+  "api_credentials": [
+    {
+      "name": "Default",
+      "api_id": "12345",
+      "api_hash": "your_api_hash"
+    },
+    {
+      "name": "Test",
+      "api_id": "12345",
+      "api_hash": "test_hash"
+    },
+    {
+      "name": "Test3",
+      "api_id": "12345",
+      "api_hash": "test_hash3"
+    }
+  ]
+}
