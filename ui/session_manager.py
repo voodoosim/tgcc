@@ -2,10 +2,11 @@
 """세션 관리 비즈니스 로직"""
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import pyperclip
 
+from adapters.base_adapter import BaseAdapter
 from adapters.pyrogram_adapter import PyrogramAdapter
 from adapters.telethon_adapter import TelethonAdapter
 from core.config import Config
@@ -23,7 +24,7 @@ class SessionManager:
         self.parent = parent
         self.log = log_callback
         self.config = Config()
-        self.adapters = {"telethon": TelethonAdapter(), "pyrogram": PyrogramAdapter()}
+        self.adapters: Dict[str, BaseAdapter] = {"telethon": TelethonAdapter(), "pyrogram": PyrogramAdapter()}
         self.active_workers: List[AsyncWorker] = []
 
     def cleanup_workers(self):

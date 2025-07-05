@@ -18,7 +18,7 @@ class BaseAdapter(ABC):
         self.sessions_dir = Path("sessions")
         self.sessions_dir.mkdir(exist_ok=True)
 
-    def normalize_and_validate_phone(self, phone: str) -> Optional[str]:
+    def normalize_and_validate_phone(self, phone: str) -> str:
         """
         전화번호 정규화 및 검증
 
@@ -26,7 +26,10 @@ class BaseAdapter(ABC):
             phone: 입력된 전화번호
 
         Returns:
-            정규화된 전화번호 또는 None
+            정규화된 전화번호
+
+        Raises:
+            ValueError: 유효하지 않은 전화번호인 경우
         """
         normalized_phone = normalize_phone_number(phone)
         if not normalized_phone:
@@ -45,7 +48,8 @@ class BaseAdapter(ABC):
         """
         # + 기호 제거하여 파일명 생성
         clean_phone = phone.lstrip("+")
-        return self.sessions_dir / f"{clean_phone}.session"
+        session_file: Path = self.sessions_dir / f"{clean_phone}.session"
+        return session_file
 
     def session_to_string(self, session_file: Path) -> str:
         """
