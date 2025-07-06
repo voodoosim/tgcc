@@ -1,190 +1,110 @@
-"""
-Session Manager for Veronica Project
-
-Coordinates UI events with adapter logic for session management.
-"""
-
-import logging
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
-
-import pyperclip
-
-from adapters.pyrogram_adapter import PyrogramAdapter
-from adapters.telethon_adapter import TelethonAdapter
-from core.config import Config
-from ui.async_worker import AsyncWorker
-from ui.dialogs import DialogHelper
-from utils.phone import (
-    format_phone_display,
-    guess_country_from_number,
-    normalize_phone_number,
-    validate_phone_number,
-)
-
-logger = logging.getLogger(__name__)
-
+# ui/session_manager.py
+import os
+from PyQt5.QtCore import QThread
+from PyQt5.QtWidgets import QMessageBox, QInputDialog, QLabel
+from PyQt5.QtGui import QPixmap, QImage
+import qrcode
+from ui.worker import Worker
+from ui.constants import SESSIONS_DIR
 
 class SessionManager:
-    """Handles all session-related logic."""
+    def __init__(self, main_window):
+        self.main_window = main_window
+        self.thread = None
+        self.worker = None
 
-    def __init__(self, parent: Any, log_callback: Callable):
-        self.parent = parent
-        self.log = log_callback
-        self.config = Config()
-        self.adapters = {
-            "telethon": TelethonAdapter(),
-            "pyrogram": PyrogramAdapter(),
-        }
-        self.active_workers: List[AsyncWorker] = []
-        self.current_session_string: Optional[str] = None
-
-    def cleanup_workers(self):
-        """Clean up any active async workers."""
-        for worker in self.active_workers:
-            if worker.isRunning():
-                worker.stop()
-        self.active_workers.clear()
-
-    def _run_async_task(self, coro: Any, on_success: Callable, on_error: Callable):
-        """Helper to run an async task in a worker thread."""
-        self.cleanup_workers()
-        worker = AsyncWorker(coro)
-        worker.result.connect(on_success)
-        worker.error.connect(on_error)
-        worker.finished.connect(lambda: self._remove_worker(worker))
-        self.active_workers.append(worker)
-        worker.start()
-
-    def _remove_worker(self, worker: AsyncWorker):
-        """Remove a worker from the active list once finished."""
-        if worker in self.active_workers:
-            self.active_workers.remove(worker)
-
-    def create_session(self, phone: str, api_index: int, library: str):
-        """Start the session creation process."""
-        normalized_phone = normalize_phone_number(phone)
-        if not normalized_phone or not validate_phone_number(normalized_phone):
-            self.log("Invalid phone number format.", "ERROR")
+    def _start_task(self, library, api_id, api_hash, phone_number, session_name, action, session_string=None):
+        if self.thread and self.thread.isRunning():
+            QMessageBox.warning(self.main_window, "경고", "이미 작업이 진행 중입니다.")
             return
 
-        api_cred = self.config.get_api_credentials()[api_index]
-        adapter = self.adapters[library]
+        self.main_window.set_ui_enabled(False)
+        self.main_window.log(f"'{session_name}' 세션에 대한 '{action}' 작업을 시작합니다...")
 
-        self.log(f"Requesting code for {normalized_phone} via {library}...", "INFO")
-        coro = adapter.create_session(
-            normalized_phone, int(api_cred["api_id"]), api_cred["api_hash"]
-        )
-        self._run_async_task(
-            coro,
-            lambda result: self._handle_code_request_result(
-                result, normalized_phone, api_cred, library
-            ),
-            lambda e: self.log(f"Failed to request code: {e}", "ERROR"),
-        )
-
-    def _handle_code_request_result(self, result: Dict, phone: str, api_cred: Dict, library: str):
-        """Handle the result of a code request and ask for the code."""
-        code = DialogHelper.get_auth_code(self.parent)
-        if not code:
-            self.log("Authentication cancelled.", "WARNING")
-            return
-
-        adapter = self.adapters[library]
-        session_string = result.get("session_string")  # For Telethon
-        phone_code_hash = result["phone_code_hash"]
-
-        self.log("Verifying code and completing authentication...", "INFO")
-        coro = adapter.complete_auth(
-            phone, int(api_cred["api_id"]), api_cred["api_hash"], code, phone_code_hash
-        )
-        self._run_async_task(coro, self._handle_auth_complete, lambda e: self.log(f"Authentication failed: {e}", "ERROR"))
-
-    def _handle_auth_complete(self, result: Optional[Dict]):
-        """Handle the final result of a successful authentication."""
-        if not result or not isinstance(result, Dict):
-            self.log("Authentication result is invalid or not a dictionary.", "ERROR")
-            return
-
-        session_string = result.get("session_string")
-        phone = result.get("phone")
-        username = result.get("username")
-
-        if not session_string or not isinstance(session_string, str):
-            self.log("Authentication result missing session string.", "ERROR")
-            return
-        if not phone or not isinstance(phone, str):
-            self.log("Authentication result missing phone number.", "ERROR")
-            return
-
-        self.current_session_string = session_string
-        self.parent.session_string.setText(self.current_session_string[:60] + "...")
-        self.log("✨ Session created successfully!", "SUCCESS")
-        self.log(f"User: {username or phone}", "INFO")
-        self._save_session_to_file(phone, self.current_session_string)
-
-    def _save_session_to_file(self, phone: str, session_string: str):
-        """Save the session string to a .session file."""
-        sessions_dir = Path("sessions")
-        sessions_dir.mkdir(exist_ok=True)
-        session_file = sessions_dir / f"{phone.lstrip('+')}.session"
-        try:
-            with open(session_file, "w", encoding="utf-8") as f:
-                f.write(session_string)
-            self.log(f"Session saved to: {session_file}", "INFO")
-        except IOError as e:
-            self.log(f"Failed to save session file: {e}", "ERROR")
-
-    def validate_session(self, phone: str, api_index: int, library: str):
-        """Validate the current session string."""
-        if not self.current_session_string:
-            self.log("No session loaded to validate.", "WARNING")
-            return
-
-        api_cred = self.config.get_api_credentials()[api_index]
-        adapter = self.adapters[library]
-
-        self.log(f"Validating session for {phone} via {library}...", "INFO")
-        coro = adapter.validate_session(
-            self.current_session_string, int(api_cred["api_id"]), api_cred["api_hash"]
-        )
-        self._run_async_task(coro, self._handle_validate_result, lambda e: self.log(f"Validation failed: {e}", "ERROR"))
-
-    def _handle_validate_result(self, is_valid: bool):
-        """Handle the result of a session validation."""
-        if is_valid:
-            self.log("✅ Session is valid and active.", "SUCCESS")
+        # Sanitize phone number for filename
+        sanitized_phone = ''.join(filter(str.isalnum, phone_number))
+        if not sanitized_phone:
+            final_session_name = session_name
         else:
-            self.log("❌ Session is invalid or expired.", "ERROR")
+            final_session_name = f"{sanitized_phone}.session"
 
-    def copy_session_string(self):
-        """Copy the current session string to the clipboard."""
-        if self.current_session_string:
-            pyperclip.copy(self.current_session_string)
-            self.log("📋 Session string copied to clipboard!", "SUCCESS")
+        full_path = os.path.join(SESSIONS_DIR, final_session_name)
+
+        if action in ['create', 'string_import'] and os.path.exists(full_path):
+             reply = QMessageBox.question(self.main_window, '파일 덮어쓰기',
+                                         f"'{final_session_name}' 파일이 이미 존재합니다. 덮어쓰시겠습니까?",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+             if reply == QMessageBox.No:
+                 self.main_window.log("작업이 사용자에 의해 취소되었습니다.")
+                 self.main_window.set_ui_enabled(True)
+                 return
+
+        self.thread = QThread()
+        self.worker = Worker(library, api_id, api_hash, phone_number, final_session_name, action, session_string)
+        self.worker.moveToThread(self.thread)
+
+        self.worker.success.connect(self.on_success)
+        self.worker.failure.connect(self.on_failure)
+        self.worker.finished.connect(self.on_finished)
+        self.worker.request_2fa.connect(self.request_2fa_password)
+        self.worker.request_qr_login.connect(self.show_qr_code)
+
+        self.thread.started.connect(self.worker.run)
+        self.thread.start()
+
+    def create_session(self, library, api_id, api_hash, phone_number):
+        self._start_task(library, api_id, api_hash, phone_number, phone_number, 'create')
+
+    def check_session(self, session_file):
+        library = self.main_window.get_selected_library()
+        api_id, api_hash = self.main_window.get_selected_api()
+        self._start_task(library, api_id, api_hash, "", session_file, 'check')
+
+    def import_from_string(self, library, api_id, api_hash, session_string, phone_for_filename):
+        self._start_task(library, api_id, api_hash, phone_for_filename, phone_for_filename, 'string_import', session_string)
+
+
+    def on_success(self, session_string, message):
+        self.main_window.log(f"성공: {message}")
+        QMessageBox.information(self.main_window, "성공", message)
+        self.main_window.set_session_string(session_string)
+        self.main_window.update_session_list()
+
+    def on_failure(self, error_message):
+        self.main_window.log(f"오류: {error_message}", is_error=True)
+        QMessageBox.critical(self.main_window, "오류", error_message)
+
+    def on_finished(self):
+        self.main_window.set_ui_enabled(True)
+        self.main_window.log("작업이 완료되었습니다.")
+        if self.thread:
+            self.thread.quit()
+            self.thread.wait()
+            self.thread = None
+            self.worker = None
+
+    def request_2fa_password(self):
+        password, ok = QInputDialog.getText(self.main_window, "2단계 인증", "2단계 인증 비밀번호를 입력하세요:")
+        if ok and password:
+            self.worker.set_2fa_password(password)
         else:
-            self.log("No session string to copy.", "WARNING")
+            self.main_window.log("2단계 인증이 취소되었습니다. 작업을 중단합니다.", is_error=True)
+            self.worker.stop()
+            self.on_failure("2단계 인증 비밀번호가 제공되지 않았습니다.")
 
-    def import_session(self):
-        """Import a session string from a dialog."""
-        session_string = DialogHelper.get_session_string(self.parent)
-        if session_string:
-            self.current_session_string = session_string
-            self.parent.session_string.setText(session_string[:60] + "...")
-            self.log("📥 Session string imported successfully.", "SUCCESS")
-            self.log("You can now validate it or save it by creating a session.", "INFO")
 
-    def load_session_file(self, file_path: str):
-        """Load a session string from a .session file."""
-        try:
-            p = Path(file_path)
-            with open(p, "r", encoding="utf-8") as f:
-                session_string = f.read().strip()
-            
-            self.current_session_string = session_string
-            self.parent.session_string.setText(session_string[:60] + "...")
-            self.parent.phone_input.setText(p.stem)
-            self.log(f"📁 Session loaded from {p.name}.", "SUCCESS")
-            self.log("You can now validate the loaded session.", "INFO")
-        except (IOError, UnicodeDecodeError) as e:
-            self.log(f"Failed to load session file: {e}", "ERROR")
+    def show_qr_code(self, qr_link):
+        self.main_window.log("QR 코드를 스캔하여 로그인하세요...")
+        qr_dialog = QMessageBox(self.main_window)
+        qr_dialog.setWindowTitle("QR 코드로 로그인")
+        qr_dialog.setText("텔레그램 모바일 앱을 열고 이 QR 코드를 스캔하세요.\n설정 > 기기 > 데스크톱 기기 연결")
+        
+        img = qrcode.make(qr_link)
+        qt_img = QImage(img.convert("RGBA").tobytes(), img.size[0], img.size[1], QImage.Format_RGBA8888)
+        pixmap = QPixmap.fromImage(qt_img)
+        
+        icon_label = QLabel()
+        icon_label.setPixmap(pixmap.scaledToWidth(256))
+        qr_dialog.setIconPixmap(pixmap.scaledToWidth(64)) # For older systems
+        qr_dialog.layout().addWidget(icon_label, 0, 0, 1, 2)
+        qr_dialog.exec_()

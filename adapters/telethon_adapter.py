@@ -1,129 +1,80 @@
-"""
-Telethon Adapter for Veronica Project
+# adapters/telethon_adapter.py
+import os
 
-This module provides a Telethon-based adapter for session management,
-standardized to use String Sessions for compatibility and reliability.
-"""
-
-import logging
-from pathlib import Path
-from typing import Dict, Optional, Union
-
-from telethon import TelegramClient
-from telethon.errors import (
-    FloodWaitError,
-    PhoneCodeInvalidError,
-    SessionPasswordNeededError,
-    UnauthorizedError,
-)
+from telethon.errors import SessionPasswordNeededError
 from telethon.sessions import StringSession
-from telethon.tl.types import InputPeerUser, User
+from telethon.sync import TelegramClient
 
-from utils.phone import normalize_phone_number
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from ui.constants import SESSIONS_DIR
 
 
 class TelethonAdapter:
-    """A Telethon-based adapter for session management using String Sessions."""
+    def __init__(self, api_id, api_hash):
+        self.api_id = int(api_id)
+        self.api_hash = api_hash
 
-    def __init__(self, sessions_dir: Path = Path("sessions")):
-        """
-        Initializes the TelethonAdapter.
+    def _get_client(self, session_name):
+        session_path = os.path.join(SESSIONS_DIR, f"{session_name}.session")
+        # Telethon.sync에서 가져온 TelegramClient는 동기적으로 작동합니다.
+        return TelegramClient(session_path, self.api_id, self.api_hash)
 
-        Args:
-            sessions_dir: The directory to store session files.
-        """
-        self.sessions_dir = sessions_dir
-        self.sessions_dir.mkdir(exist_ok=True)
-
-    async def _disconnect_client(self, client: TelegramClient):
-        """Safely disconnect the client."""
-        if client and client.is_connected():
-            try:
-                await client.disconnect()
-            except Exception as e:
-                logging.warning("Failed to disconnect client: %s", e)
-
-    async def create_session(self, phone: str, api_id: int, api_hash: str) -> Dict[str, Union[str, bool]]:
-        """
-        Starts the session creation process.
-        This now only initiates the client and sends the code.
-        The session string is handled in complete_auth.
-        """
-        normalized_phone = normalize_phone_number(phone)
-        if not normalized_phone:
-            raise ValueError("Invalid phone number format")
-
-        client = TelegramClient(StringSession(), api_id, api_hash)
+    def create_session(self, session_name, phone_number, password_callback, qr_callback=None):
+        """세션을 생성하고 디스크에 저장합니다."""
+        # 'qr_callback'은 Pyrogram과의 호환성을 위해 존재하며, 여기서는 사용되지 않습니다.
+        client = self._get_client(session_name)
         try:
-            await client.connect()
-            result = await client.send_code_request(normalized_phone)
-            return {
-                "phone": normalized_phone,
-                "phone_code_hash": result.phone_code_hash,
-                "session_string": client.session.save(),
-                "exists": False,  # A new session is always created
-            }
-        except (UnauthorizedError, FloodWaitError, ValueError) as e:
-            logging.error("Failed to create session for %s: %s", normalized_phone, e)
-            raise
-        finally:
-            await self._disconnect_client(client)
+            # 동기 클라이언트는 명시적인 connect/disconnect가 with 문으로 관리됩니다.
+            with client:
+                if not client.is_user_authorized():
+                    client.send_code_request(phone_number)
+                    # GUI 앱에서는 input()을 사용할 수 없으므로, 이 부분은 GUI에서 처리해야 합니다.
+                    # 여기서는 개념 증명을 위해 남겨둡니다. 실제로는 UI에서 코드를 받아야 합니다.
+                    code = password_callback("Telegram에서 받은 인증 코드를 입력하세요:")
+                    try:
+                        client.sign_in(phone_number, code)
+                    except SessionPasswordNeededError:
+                        password = password_callback("2단계 인증 비밀번호를 입력하세요:")
+                        client.sign_in(password=password)
 
-    async def complete_auth(
-        self,
-        phone: str,
-        api_id: int,
-        api_hash: str,
-        code: str,
-        phone_code_hash: str,
-        session_string: str,
-    ) -> Dict[str, str]:
-        """
-        Complete authentication with the code and return the final session string.
-        """
-        normalized_phone = normalize_phone_number(phone)
-        if not normalized_phone:
-            raise ValueError("Invalid phone number format")
-
-        client = TelegramClient(StringSession(session_string), api_id, api_hash)
-        try:
-            await client.connect()
-            await client.sign_in(normalized_phone, code, phone_code_hash=phone_code_hash)
-
-            me: Optional[Union[User, InputPeerUser]] = await client.get_me()
-            if not me or not isinstance(me, User):
-                raise ValueError("Failed to retrieve user information")
-
-            final_session_string = client.session.save()
-            return {
-                "user_id": str(me.id),
-                "username": me.username or "",
-                "phone": me.phone or normalized_phone,
-                "session_string": final_session_string,
-            }
-        except (PhoneCodeInvalidError, SessionPasswordNeededError, ValueError) as e:
-            logging.error("Authentication failed for %s: %s", normalized_phone, e)
-            raise
-        finally:
-            await self._disconnect_client(client)
-
-    async def validate_session(self, session_string: str, api_id: int, api_hash: str) -> bool:
-        """
-        Validate an existing session string.
-        """
-        if not session_string:
-            return False
-
-        client = TelegramClient(StringSession(session_string), api_id, api_hash)
-        is_valid = False  # Initialize is_valid
-        try:
-            await client.connect()
-            is_valid = await client.is_user_authorized()
+            save_path = os.path.join(SESSIONS_DIR, f"{session_name}.session")
+            return True, f"Telethon 세션 저장 완료: {save_path}"
         except Exception as e:
-            logging.error("Unexpected error during validation: %s", e)
-            is_valid = False
-        finally:
-            await self._disconnect_client(client)
-        return is_valid
+            return False, f"Telethon 오류: {e}"
+
+    def check_session(self, session_name):
+        """세션 파일의 유효성을 확인합니다."""
+        client = self._get_client(session_name)
+        try:
+            with client:
+                me = client.get_me()
+                if me:
+                    return True, f"세션 유효. 사용자: @{me.username}"
+            return False, "세션이 유효하지 않습니다."
+        except Exception as e:
+            return False, f"세션 확인 오류: {e}"
+
+    def export_session_string(self, session_name):
+        """세션을 문자열로 내보냅니다."""
+        client = self._get_client(session_name)
+        try:
+            with client:
+                return StringSession.save(client.session)
+        except Exception:
+            return ""
+
+    def import_session_from_string(self, session_name, session_string):
+        """세션 문자열로부터 .session 파일을 생성합니다."""
+        session_path = os.path.join(SESSIONS_DIR, f"{session_name}.session")
+        try:
+            # 문자열로 임시 클라이언트를 만들고, 그 세션을 파일로 저장합니다.
+            with TelegramClient(StringSession(session_string), self.api_id, self.api_hash) as client:
+                # 파일 이름을 명시적으로 지정하고 저장
+                client.session.set_filename(session_path)
+                client.session.save()
+            return True, f"문자열에서 세션을 '{session_path}'에 저장했습니다."
+        except Exception as e:
+            return False, f"문자열 가져오기 오류: {e}"
+
+    def disconnect(self):
+        # 'with' 구문이 자동으로 연결을 관리하므로 별도의 disconnect는 필요 없습니다.
+        pass
