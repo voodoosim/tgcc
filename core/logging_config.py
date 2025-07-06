@@ -5,7 +5,7 @@ import logging.handlers
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 
 class ColoredFormatter(logging.Formatter):
@@ -29,7 +29,7 @@ class ColoredFormatter(logging.Formatter):
 
 
 def setup_logging(
-    log_file: Optional[str] = None, log_level: str = "INFO", console: bool = True, file: bool = True
+    log_file: Optional[Union[str, Path]] = None, log_level: str = "INFO", console: bool = True, file: bool = True
 ) -> logging.Logger:
     """
     로깅 설정

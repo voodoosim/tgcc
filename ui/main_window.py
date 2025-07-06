@@ -60,7 +60,7 @@ class MainWindow(QMainWindow):
         session_layout = QHBoxLayout(session_container)
         session_layout.setContentsMargins(0, 0, 0, 0)
         session_layout.addWidget(self.session_string)
-        session_container.mousePressEvent = lambda event: self.copy_session_string()
+        session_container.mousePressEvent = lambda event: self.session_manager.copy_session_string()
         main_layout.addWidget(session_container)
 
         # 로그 영역
@@ -155,7 +155,7 @@ class MainWindow(QMainWindow):
         # 세션 가져오기 버튼
         self.import_btn = AnimatedButton("📥 가져오기")
         self.import_btn.setObjectName("importBtn")
-        self.import_btn.clicked.connect(self.import_session)
+        self.import_btn.clicked.connect(self.session_manager.import_session)
         button_section.addWidget(self.import_btn)
 
         # 세션 파일 불러오기 버튼
@@ -238,17 +238,11 @@ class MainWindow(QMainWindow):
 
     def copy_session_string(self):
         """세션 문자열 복사"""
-        phone = self.phone_input.text().strip()
-        library = self.lib_combo.currentText().split()[1]
-        session_string = self.session_manager.copy_session_string(phone, library)
-        if session_string:
-            self.session_string.setText(session_string)
+        self.session_manager.copy_session_string()
 
     def import_session(self):
         """세션 가져오기"""
-        phone = self.phone_input.text().strip()
-        library = self.lib_combo.currentText().split()[1]
-        self.session_manager.import_session(phone, library)
+        self.session_manager.import_session()
 
     def load_session_file(self):
         """세션 파일 불러오기"""
