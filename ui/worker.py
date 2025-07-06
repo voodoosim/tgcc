@@ -11,7 +11,8 @@ class Worker(QObject):
     finished = pyqtSignal()
     success = pyqtSignal(str, str)
     failure = pyqtSignal(str)
-    request_2fa = pyqtSignal()
+    # 2FA 뿐만 아니라 일반 코드 입력도 처리할 수 있도록 시그널 확장
+    request_code_from_gui = pyqtSignal(str)
 
     def __init__(self, library, api_id, api_hash, phone_number, session_name, action, session_string=None):
         super().__init__()
@@ -23,7 +24,7 @@ class Worker(QObject):
         self.action = action
         self.session_string = session_string
         self.adapter = None
-        self.two_fa_password = None
+        self.gui_input = None
         self._is_running = True
 
     def run(self):
@@ -33,12 +34,13 @@ class Worker(QObject):
             else:
                 self.adapter = PyrogramAdapter(self.api_id, self.api_hash)
 
-            if self.action == "create":
-                self._handle_creation()
-            elif self.action == "check":
-                self._handle_check()
-            elif self.action == "string_import":
-                self._handle_string_import()
+            action_map = {
+                "create": self._handle_creation,
+                "check": self._handle_check,
+                "string_import": self._handle_string_import,
+            }
+            if self.action in action_map:
+                action_map[self.action]()
 
         except Exception as e:
             error_info = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
@@ -47,11 +49,7 @@ class Worker(QObject):
             self.finished.emit()
 
     def _handle_creation(self):
-        result, message = self.adapter.create_session(
-            session_name=self.session_name,
-            phone_number=self.phone_number,
-            password_callback=self._request_2fa_from_main_thread,
-        )
+        result, message = self.adapter.create_session(self.session_name, self.phone_number, self._get_code_from_gui)
         if result:
             session_string = self.adapter.export_session_string(self.session_name)
             self.success.emit(session_string, message)
@@ -73,14 +71,15 @@ class Worker(QObject):
         else:
             self.failure.emit(message)
 
-    def _request_2fa_from_main_thread(self):
-        self.request_2fa.emit()
-        while self.two_fa_password is None and self._is_running:
-            QThread.msleep(100)
-        return self.two_fa_password
+    def _get_code_from_gui(self, prompt_message):
+        self.gui_input = None  # 이전 값 초기화
+        self.request_code_from_gui.emit(prompt_message)
+        while self.gui_input is None and self._is_running:
+            QThread.msleep(100)  # 0.1초 대기
+        return self.gui_input
 
-    def set_2fa_password(self, password):
-        self.two_fa_password = password
+    def set_gui_input(self, text):
+        self.gui_input = text
 
     def stop(self):
         self._is_running = False
