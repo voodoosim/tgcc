@@ -19,10 +19,12 @@ select = ["E", "F", "W", "I", "N"]
 ignore = [
     "E501",  # line too long
     "N802",  # function name should be lowercase (PyQt5 이벤트 핸들러 때문)
+    "E402",  # module level import not at top of file
 ]
 
 [tool.ruff.per-file-ignores]
 "ui/*.py" = ["N802"]  # UI 파일들에서는 camelCase 허용
+"run.py" = ["E402"]  # sys.path 설정 후 import 허용
 
 [tool.pylint]
 max-line-length = 120

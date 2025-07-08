@@ -1,82 +1,76 @@
+# core/config.py
 import json
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional
+import os
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from ui.constants import CONFIG_FILE, SESSIONS_DIR
 
 
 class Config:
-    """Telegram API 자격 증명 관리"""
+    """
+    설정 파일을 관리하는 클래스.
+    API 정보, 마지막 사용 라이브러리 등을 JSON 파일로 관리합니다.
+    """
 
-    def __init__(self, config_file: Optional[Path] = None):
-        self.config_file = config_file or Path("data/config.json")
+    def __init__(self):
+        self._config_path = CONFIG_FILE
         self._config = self._load_config()
 
-    def _load_config(self) -> Dict[str, List[Dict[str, str]]]:
-        """config.json 로드, 없으면 기본값 생성"""
+        if not os.path.exists(SESSIONS_DIR):
+            os.makedirs(SESSIONS_DIR)
+
+    def _load_config(self):
+        """설정 파일(config.json)을 불러옵니다. 없으면 기본 구조를 생성합니다."""
         try:
-            self.config_file.parent.mkdir(exist_ok=True)
-            if self.config_file.exists():
-                with open(self.config_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            config: Dict[str, List[Dict[str, str]]] = {"api_credentials": []}
-            self._save_config(config)
-            return config
-        except json.JSONDecodeError as e:
-            logging.error("Failed to decode config file: %s", e)
-            return {"api_credentials": []}
-        except PermissionError as e:
-            logging.error("Permission denied accessing config file: %s", e)
-            return {"api_credentials": []}
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            # 파일이 없거나 내용이 잘못된 경우 기본값으로 시작
+            return {"api_credentials": [], "last_used_api": None, "last_used_library": "Pyrogram"}
 
-    def _save_config(self, config: Optional[Dict[str, List[Dict[str, str]]]] = None) -> bool:
-        """config.json 저장"""
-        try:
-            if config is None:
-                config = self._config
-            with open(self.config_file, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-            return True
-        except PermissionError as e:
-            logging.error("Permission denied saving config file: %s", e)
-            return False
+    def _save_config(self):
+        """현재 설정을 config.json 파일에 저장합니다."""
+        with open(self._config_path, "w", encoding="utf-8") as f:
+            json.dump(self._config, f, indent=4, ensure_ascii=False)
 
-    def reload_config(self):
-        """설정 파일을 다시 로드"""
-        self._config = self._load_config()
-        return self._config
-
-    def get_api_credentials(self) -> List[Dict[str, str]]:
-        """API 자격 증명 목록 반환"""
-        # 항상 최신 데이터를 반환하도록 리로드
-        self.reload_config()
+    def get_api_credentials(self):
+        """저장된 모든 API 자격 증명 목록을 반환합니다."""
         return self._config.get("api_credentials", [])
 
-    def add_api_credential(self, name: str, api_id: str, api_hash: str) -> bool:
-        """새 API 자격 증명 추가"""
-        try:
-            api_id_int = int(api_id)
-
-            # 중복 체크
-            for cred in self._config["api_credentials"]:
-                if cred["name"] == name:
-                    logging.warning("Credential name already exists: %s", name)
-                    return False
-
-            # 새 자격증명 추가
-            self._config["api_credentials"].append({"name": name, "api_id": str(api_id_int), "api_hash": api_hash})
-
-            # 저장
-            success = self._save_config(self._config)
-            if success:
-                # 저장 후 다시 로드하여 동기화
-                self.reload_config()
-            return success
-
-        except ValueError as e:
-            logging.error("Invalid API ID format: %s", e)
+    def add_api_credential(self, nickname, api_id, api_hash):
+        """새로운 API 자격 증명을 추가합니다."""
+        credentials = self.get_api_credentials()
+        # 닉네임 중복 확인
+        if any(cred.get("name") == nickname for cred in credentials):
             return False
-        except PermissionError as e:
-            logging.error("Permission error adding API credential: %s", e)
-            return False
+
+        new_cred = {"name": nickname, "api_id": api_id, "api_hash": api_hash}
+        self._config["api_credentials"].append(new_cred)
+        self._save_config()
+        return True
+
+    def remove_api_credential(self, nickname):
+        """닉네임으로 API 자격 증명을 삭제합니다."""
+        credentials = self.get_api_credentials()
+        original_count = len(credentials)
+
+        new_credentials = [cred for cred in credentials if cred.get("name") != nickname]
+
+        if len(new_credentials) < original_count:
+            self._config["api_credentials"] = new_credentials
+            self._save_config()
+            return True
+        return False
+
+    def get_last_used_library(self):
+        """마지막으로 사용한 라이브러리 이름을 반환합니다."""
+        return self._config.get("last_used_library", "Pyrogram")
+
+    def get_last_used_api(self):
+        """마지막으로 사용한 API 닉네임을 반환합니다."""
+        return self._config.get("last_used_api")
+
+    def save_last_used(self, api_nickname, library_name):
+        """마지막으로 사용한 API와 라이브러리 설정을 저장합니다."""
+        self._config["last_used_api"] = api_nickname
+        self._config["last_used_library"] = library_name
+        self._save_config()

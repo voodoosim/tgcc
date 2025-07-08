@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -20,11 +21,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from core.config_manager import ConfigManager
+from core.config import Config
 from ui.constants import (
     ADD_API_BUTTON,
     CHECK_SESSION_BUTTON,
-    CONFIG_FILE,
     COPY_SESSION_STRING_BUTTON,
     CREATE_SESSION_BUTTON,
     IMPORT_STRING_BUTTON,
@@ -40,22 +40,19 @@ from ui.constants import (
     WINDOW_SIZE,
 )
 from ui.session_manager import SessionManager
-from ui.styles import DARK_STYLESHEET
+from ui.styles import DARK_STYLE
 
 
 class MainWindow(QMainWindow):
-    # 이 클래스의 내용은 이전과 동일합니다.
-    # 코드가 너무 길어 생략하지만, 클래스 전체 내용은 변경되지 않았습니다.
-    # 그냥 이전 지시사항에 있던 MainWindow 클래스 코드를 그대로 사용하시면 됩니다.
     def __init__(self):
         super().__init__()
         self.setWindowTitle(TITLE)
         self.setGeometry(*WINDOW_SIZE)
-        self.setStyleSheet(DARK_STYLESHEET)
-        self.config_manager = ConfigManager(CONFIG_FILE)
+        self.setStyleSheet(DARK_STYLE)
+
+        self.config = Config()
         self.session_manager = SessionManager(self)
-        if not os.path.exists(SESSIONS_DIR):
-            os.makedirs(SESSIONS_DIR)
+
         self.init_ui()
         self.load_config()
         self.update_session_list()
@@ -64,6 +61,8 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+
+        # ... (이하 UI 구성 코드는 이전과 동일하게 유지됩니다) ...
         top_controls_layout = QHBoxLayout()
         self.api_combo = QComboBox()
         self.api_combo.setToolTip("사용할 API ID/Hash 선택")
@@ -95,7 +94,7 @@ class MainWindow(QMainWindow):
         self.session_string_input.setPlaceholderText(SESSION_STRING_PLACEHOLDER)
         left_layout.addWidget(self.session_string_input)
         self.import_string_button = QPushButton(IMPORT_STRING_BUTTON)
-        self.import_string_button.clicked.connect(self.import_session_from_string)
+        self.import_string_button.clicked.connect(self.import_from_string)
         left_layout.addWidget(self.import_string_button)
         splitter.addWidget(left_panel)
         right_panel = QWidget()
@@ -130,12 +129,93 @@ class MainWindow(QMainWindow):
         bottom_layout.addLayout(session_string_layout)
         splitter.setSizes([self.width() // 2, self.width() // 2])
 
-    def get_selected_api(self):
+    def load_apis(self):
+        """API 목록을 콤보박스에 로드합니다."""
+        self.api_combo.clear()
+        credentials = self.config.get_api_credentials()
+        if not credentials:
+            self.api_combo.addItem("등록된 API 없음")
+            return
+        for cred in credentials:
+            self.api_combo.addItem(f"{cred['name']} ({cred['api_id']})")
+
+        last_api = self.config.get_last_used_api()
+        if last_api:
+            for i in range(self.api_combo.count()):
+                if self.api_combo.itemText(i).startswith(last_api):
+                    self.api_combo.setCurrentIndex(i)
+                    break
+
+    def load_config(self):
+        """설정 파일에서 마지막 상태를 불러옵니다."""
+        self.load_apis()
+        last_library = self.config.get_last_used_library()
+        index = self.library_combo.findText(last_library)
+        if index >= 0:
+            self.library_combo.setCurrentIndex(index)
+
+    def save_config(self):
+        """현재 상태를 설정 파일에 저장합니다."""
+        nickname = None
         current_text = self.api_combo.currentText()
-        if not current_text or current_text == "등록된 API 없음":
+        if current_text and "등록된" not in current_text:
+            nickname = current_text.split(" (")[0]
+        library_name = self.library_combo.currentText()
+        self.config.save_last_used(nickname, library_name)
+
+    def get_selected_api(self):
+        """콤보박스에서 선택된 API의 ID와 Hash를 반환합니다."""
+        current_text = self.api_combo.currentText()
+        if not current_text or "등록된" in current_text:
             return None, None
         nickname = current_text.split(" (")[0]
-        return self.config_manager.get_api_by_nickname(nickname)
+        for cred in self.config.get_api_credentials():
+            if cred["name"] == nickname:
+                return cred["api_id"], cred["api_hash"]
+        return None, None
+
+    def add_api(self):
+        """사용자로부터 API 정보를 입력받아 추가합니다."""
+        nickname, ok = QInputDialog.getText(self, "API 추가", "API 닉네임 (별명):")
+        if not ok or not nickname.strip():
+            return
+
+        api_id, ok = QInputDialog.getText(self, "API 추가", f"'{nickname}'의 API ID:")
+        if not ok or not api_id.strip():
+            return
+
+        api_hash, ok = QInputDialog.getText(self, "API 추가", f"'{nickname}'의 API Hash:")
+        if not ok or not api_hash.strip():
+            return
+
+        if self.config.add_api_credential(nickname, api_id, api_hash):
+            self.log(f"✅ API '{nickname}' 추가 완료.")
+            self.load_apis()
+        else:
+            QMessageBox.warning(self, "오류", f"이미 '{nickname}'라는 이름의 API가 존재합니다.")
+
+    def remove_api(self):
+        """선택된 API를 설정에서 삭제합니다."""
+        current_text = self.api_combo.currentText()
+        if not current_text or "등록된" in current_text:
+            QMessageBox.warning(self, "선택 오류", "삭제할 API를 목록에서 선택해주세요.")
+            return
+
+        nickname = current_text.split(" (")[0]
+        reply = QMessageBox.question(
+            self,
+            "삭제 확인",
+            f"정말로 '{nickname}' API를 삭제하시겠습니까?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if reply == QMessageBox.Yes:
+            if self.config.remove_api_credential(nickname):
+                self.log(f"🗑️ API '{nickname}' 삭제 완료.")
+                self.load_apis()
+            else:  # 혹시 모를 경우
+                self.log(f"❌ API '{nickname}' 삭제 실패.", is_error=True)
 
     def get_selected_library(self):
         return self.library_combo.currentText()
@@ -143,130 +223,89 @@ class MainWindow(QMainWindow):
     def create_session(self):
         api_id, api_hash = self.get_selected_api()
         if not api_id:
-            QMessageBox.warning(self, "API 정보 없음", "먼저 API 정보를 추가해주세요.")
+            QMessageBox.warning(self, "API 선택 필요", "먼저 API를 추가하거나 선택해주세요.")
             return
-        phone_number = self.phone_input.text().strip()
-        if not phone_number:
+        phone = self.phone_input.text().strip()
+        if not phone:
             QMessageBox.warning(self, "입력 오류", "전화번호를 입력해주세요.")
             return
         library = self.get_selected_library()
-        self.session_manager.create_session(library, api_id, api_hash, phone_number)
+        self.session_manager.create_session(library, api_id, api_hash, phone)
 
     def check_session(self):
-        selected_items = self.session_list_widget.selectedItems()
-        if not selected_items:
+        selected = self.session_list_widget.currentItem()
+        if not selected:
             QMessageBox.warning(self, "선택 오류", "확인할 세션 파일을 목록에서 선택해주세요.")
             return
-        session_file = selected_items[0].text()
-        self.session_manager.check_session(session_file)
+        api_id, api_hash = self.get_selected_api()
+        if not api_id:
+            QMessageBox.warning(self, "API 선택 필요", "세션을 확인하려면 API를 선택해야 합니다.")
+            return
+        self.session_manager.check_session(selected.text())
 
-    def import_session_from_string(self):
+    def import_from_string(self):
+        api_id, api_hash = self.get_selected_api()
+        if not api_id:
+            QMessageBox.warning(self, "API 선택 필요", "세션을 가져오려면 API를 선택해야 합니다.")
+            return
         session_string = self.session_string_input.toPlainText().strip()
         if not session_string:
             QMessageBox.warning(self, "입력 오류", "세션 문자열을 입력해주세요.")
             return
-        phone_for_filename = self.phone_input.text().strip()
-        if not phone_for_filename:
-            tip = "(세션 파일 이름을 만들기 위한 전화번호 또는 별명을 입력해주세요)"
-            QMessageBox.warning(self, "입력 오류", f"파일 이름이 필요합니다.\n{tip}")
-            return
-        api_id, api_hash = self.get_selected_api()
-        if not api_id:
-            QMessageBox.warning(self, "API 정보 없음", "먼저 API 정보를 추가해주세요.")
+        filename, ok = QInputDialog.getText(self, "파일 이름 지정", "저장할 파일 이름을 입력하세요 (확장자 제외):")
+        if not ok or not filename.strip():
             return
         library = self.get_selected_library()
-        self.session_manager.import_from_string(library, api_id, api_hash, session_string, phone_for_filename)
+        self.session_manager.import_from_string(library, api_id, api_hash, session_string, filename)
 
     def update_session_list(self):
         self.session_list_widget.clear()
         try:
             files = [f for f in os.listdir(SESSIONS_DIR) if f.endswith(".session")]
-            self.session_list_widget.addItems(files)
+            self.session_list_widget.addItems(sorted(files))
         except FileNotFoundError:
-            self.log(f"'{SESSIONS_DIR}' 디렉토리를 찾을 수 없습니다. 새로 생성합니다.", is_error=True)
             os.makedirs(SESSIONS_DIR)
+            self.log(f"'{SESSIONS_DIR}' 폴더를 새로 만들었습니다.")
 
     def log(self, message, is_error=False):
-        color = "red" if is_error else "white"
+        color = "#ff4757" if is_error else "white"
         self.log_area.append(f"<span style='color:{color};'>{message}</span>")
 
     def copy_session_string(self):
         text = self.session_string_output.text()
         if text:
             QApplication.clipboard().setText(text)
-            self.log("세션 문자열이 클립보드에 복사되었습니다.")
+            self.log("📋 세션 문자열이 클립보드에 복사되었습니다.")
         else:
             self.log("복사할 세션 문자열이 없습니다.", is_error=True)
 
     def set_session_string(self, text):
         self.session_string_output.setText(text)
 
-    def add_api(self):
-        self.config_manager.add_api_dialog(self)
-        self.load_apis()
-
-    def remove_api(self):
-        current_text = self.api_combo.currentText()
-        if not current_text or current_text == "등록된 API 없음":
-            QMessageBox.warning(self, "선택 오류", "삭제할 API를 선택해주세요.")
-            return
-        nickname = current_text.split(" (")[0]
-        self.config_manager.remove_api(nickname)
-        self.load_apis()
-        self.log(f"'{nickname}' API 정보가 삭제되었습니다.")
-
     def open_sessions_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(SESSIONS_DIR))
 
-    def load_config(self):
-        self.load_apis()
-        config = self.config_manager.get_config()
-        last_library = config.get("last_used_library")
-        if last_library:
-            index = self.library_combo.findText(last_library)
-            if index != -1:
-                self.library_combo.setCurrentIndex(index)
-
-    def load_apis(self):
-        self.api_combo.clear()
-        apis = self.config_manager.get_apis()
-        if not apis:
-            self.api_combo.addItem("등록된 API 없음")
-            return
-        for nickname, data in apis.items():
-            self.api_combo.addItem(f"{nickname} ({data['id']})")
-        last_api = self.config_manager.get_config().get("last_used_api")
-        if last_api and last_api in apis:
-            index = self.api_combo.findText(f"{last_api} ({apis[last_api]['id']})")
-            if index != -1:
-                self.api_combo.setCurrentIndex(index)
-
-    def save_config(self):
-        current_text = self.api_combo.currentText()
-        nickname = None
-        if current_text and current_text != "등록된 API 없음":
-            nickname = current_text.split(" (")[0]
-        self.config_manager.save_config(
-            {"last_used_api": nickname, "last_used_library": self.library_combo.currentText()}
-        )
-
     def set_ui_enabled(self, enabled):
-        for widget in self.findChildren(QPushButton):
+        status_text = "활성화" if enabled else "비활성화 (작업 처리 중...)"
+        self.statusBar().showMessage(f"UI 상태: {status_text}")
+        for widget in self.findChildren((QPushButton, QLineEdit, QComboBox, QTextEdit)):
             widget.setEnabled(enabled)
-        for widget in self.findChildren(QLineEdit):
-            widget.setEnabled(enabled)
-        for widget in self.findChildren(QComboBox):
-            widget.setEnabled(enabled)
-        self.session_string_input.setEnabled(enabled)
-        if not enabled:
-            self.log("<i>작업 처리 중...</i>")
         QApplication.processEvents()
 
     def closeEvent(self, event):
         self.save_config()
         if self.session_manager.thread and self.session_manager.thread.isRunning():
-            self.log("진행 중인 작업을 중단합니다...")
-            self.session_manager.worker.stop()
-            self.session_manager.thread.quit()
-            self.session_manager.thread.wait()
-        event.accept()
+            reply = QMessageBox.question(
+                self,
+                "작업 진행 중",
+                "세션 작업이 아직 진행 중입니다. 정말로 종료하시겠습니까?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                self.session_manager.worker.stop()
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()

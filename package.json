@@ -1,0 +1,22 @@
+{
+  "name": "tgcc",
+  "version": "1.0.0",
+  "description": "베로니카 프로젝트",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/voodoosim/tgcc.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/voodoosim/tgcc/issues"
+  },
+  "homepage": "https://github.com/voodoosim/tgcc#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.53.2",
+    "@types/node": "^24.0.10"
+  }
+}

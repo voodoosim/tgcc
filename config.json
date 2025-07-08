@@ -1,0 +1,11 @@
+{
+    "api_credentials": [
+        {
+            "name": "24413779",
+            "api_id": "24413779",
+            "api_hash": "6f8a7e248b581b5159ea62ba3ca279fe"
+        }
+    ],
+    "last_used_api": "24413779",
+    "last_used_library": "Telethon"
+}
