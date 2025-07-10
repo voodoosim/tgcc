@@ -1,11 +1,14 @@
 # ui/worker.py
 import traceback
+import logging
 import sentry_sdk
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from adapters.pyrogram_adapter import PyrogramAdapter
 from adapters.telethon_adapter import TelethonAdapter
+
+logger = logging.getLogger(__name__)
 
 # Sentry 초기화 (중복 방지를 위해 조건부 초기화)
 if not sentry_sdk.Hub.current.client:
@@ -35,6 +38,8 @@ class Worker(QObject):
         self.adapter = None
         self.gui_input = None
         self._is_running = True
+        
+        logger.info(f"Worker 초기화: library={library}, action={action}, session={session_name}")
         
         # Sentry 컨텍스트 설정
         with sentry_sdk.configure_scope() as scope:
@@ -117,7 +122,9 @@ class Worker(QObject):
                 self.finished.emit()
 
     def _handle_creation(self):
+        logger.info(f"세션 생성 작업 시작: {self.session_name}")
         result, message = self.adapter.create_session(self.session_name, self.phone_number, self._get_code_from_gui)
+        logger.info(f"세션 생성 결과: {result}, 메시지: {message}")
         if result:
             session_string = self.adapter.export_session_string(self.session_name)
             self.success.emit(session_string, message)
@@ -125,7 +132,10 @@ class Worker(QObject):
             self.failure.emit(message)
 
     def _handle_check(self):
+        logger.info(f"세션 확인 작업 시작: {self.session_name}")
         result, message = self.adapter.check_session(self.session_name)
+        logger.info(f"세션 확인 결과: {result}, 메시지: {message}")
+        
         if result:
             session_string = self.adapter.export_session_string(self.session_name)
             self.success.emit(session_string, message)
@@ -133,7 +143,9 @@ class Worker(QObject):
             self.failure.emit(message)
 
     def _handle_string_import(self):
+        logger.info(f"세션 문자열 가져오기 작업 시작: {self.session_name}")
         result, message = self.adapter.import_session_from_string(self.session_name, self.session_string)
+        logger.info(f"세션 가져오기 결과: {result}, 메시지: {message}")
         if result:
             self.success.emit(self.session_string, message)
         else:
