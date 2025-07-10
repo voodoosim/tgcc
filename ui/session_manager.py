@@ -59,6 +59,37 @@ class SessionManager:
         library = self.main_window.get_selected_library()
         api_id, api_hash = self.main_window.get_selected_api()
         session_name = session_file.replace(".session", "")
+        
+        # 세션 파일 기본 검증 추가
+        session_path = os.path.join(SESSIONS_DIR, session_file)
+        if not os.path.exists(session_path):
+            QMessageBox.warning(self.main_window, "파일 오류", f"세션 파일 '{session_file}'을 찾을 수 없습니다.")
+            return
+            
+        # 파일 크기 확인
+        file_size = os.path.getsize(session_path)
+        if file_size == 0:
+            QMessageBox.warning(self.main_window, "파일 오류", f"세션 파일 '{session_file}'이 비어있습니다.")
+            return
+            
+        # SQLite 파일 형식 확인 (Telethon 세션의 경우)
+        if library == "Telethon":
+            try:
+                with open(session_path, 'rb') as f:
+                    header = f.read(16)
+                    if not header.startswith(b'SQLite format 3'):
+                        QMessageBox.warning(
+                            self.main_window, 
+                            "파일 형식 오류", 
+                            f"'{session_file}'은 올바른 Telethon 세션 파일이 아닙니다.\n\n" +
+                            "Telethon 세션은 SQLite 데이터베이스 형식이어야 합니다."
+                        )
+                        return
+            except Exception as e:
+                self.main_window.log(f"❌ 세션 파일 읽기 오류: {e}", is_error=True)
+                return
+        
+        self.main_window.log(f"📋 세션 파일 기본 검증 통과: {session_file} (크기: {file_size} bytes)")
         self._start_task(library, api_id, api_hash, "", session_name, "check")
 
     def import_from_string(self, library, api_id, api_hash, session_string, filename):
@@ -154,7 +185,22 @@ class SessionManager:
 
     def on_failure(self, error_message):
         self.main_window.log(f"❌ 오류: {error_message}", is_error=True)
-        QMessageBox.critical(self.main_window, "오류", error_message)
+        
+        # 더 자세한 오류 메시지 제공
+        if "네트워크 연결 오류" in error_message:
+            detailed_msg = error_message + "\n\n가능한 원인:\n" + \
+                          "1. 인터넷 연결을 확인해주세요\n" + \
+                          "2. 텔레그램 서버가 일시적으로 응답하지 않을 수 있습니다\n" + \
+                          "3. 방화벽이나 VPN 설정을 확인해주세요"
+        elif "세션이 유효하지 않습니다" in error_message:
+            detailed_msg = error_message + "\n\n가능한 원인:\n" + \
+                          "1. 세션이 만료되었거나 다른 곳에서 로그아웃되었습니다\n" + \
+                          "2. 세션을 생성할 때 사용한 API ID/Hash와 다릅니다\n" + \
+                          "3. 세션 파일이 손상되었을 수 있습니다"
+        else:
+            detailed_msg = error_message
+            
+        QMessageBox.critical(self.main_window, "오류", detailed_msg)
 
     def on_finished(self):
         self.main_window.set_ui_enabled(True)
