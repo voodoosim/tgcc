@@ -1,10 +1,19 @@
 # ui/worker.py
 import traceback
+import sentry_sdk
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from adapters.pyrogram_adapter import PyrogramAdapter
 from adapters.telethon_adapter import TelethonAdapter
+
+# Sentry 초기화 (중복 방지를 위해 조건부 초기화)
+if not sentry_sdk.Hub.current.client:
+    sentry_sdk.init(
+        dsn="https://7f1801913a84e667c35ba63f2d0aa344@o4509638743097344.ingest.de.sentry.io/4509641306341456",
+        send_default_pii=True,
+        traces_sample_rate=1.0,
+    )
 
 
 class Worker(QObject):
@@ -26,27 +35,86 @@ class Worker(QObject):
         self.adapter = None
         self.gui_input = None
         self._is_running = True
+        
+        # Sentry 컨텍스트 설정
+        with sentry_sdk.configure_scope() as scope:
+            scope.set_tag("component", "worker")
+            scope.set_context("worker", {
+                "library": library,
+                "action": action,
+                "session_name": session_name,
+                "worker_version": "1.0"
+            })
 
     def run(self):
-        try:
-            if self.library == "Telethon":
-                self.adapter = TelethonAdapter(self.api_id, self.api_hash)
-            else:
-                self.adapter = PyrogramAdapter(self.api_id, self.api_hash)
+        with sentry_sdk.start_transaction(name="worker_run", op="qt_operation") as transaction:
+            transaction.set_data("library", self.library)
+            transaction.set_data("action", self.action)
+            
+            try:
+                if self.library == "Telethon":
+                    self.adapter = TelethonAdapter(self.api_id, self.api_hash)
+                else:
+                    self.adapter = PyrogramAdapter(self.api_id, self.api_hash)
 
-            action_map = {
-                "create": self._handle_creation,
-                "check": self._handle_check,
-                "string_import": self._handle_string_import,
-            }
-            if self.action in action_map:
-                action_map[self.action]()
+                action_map = {
+                    "create": self._handle_creation,
+                    "check": self._handle_check,
+                    "string_import": self._handle_string_import,
+                }
+                if self.action in action_map:
+                    action_map[self.action]()
+                    
+                    # 성공 이벤트 기록
+                    sentry_sdk.add_breadcrumb(
+                        message=f"Worker completed action: {self.action} with {self.library}",
+                        level="info"
+                    )
 
-        except Exception as e:
-            error_info = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
-            self.failure.emit(f"알 수 없는 오류 발생:\n{error_info}")
-        finally:
-            self.finished.emit()
+            except (ValueError, TypeError) as e:
+                # 입력값 관련 구체적 에러 처리
+                error_info = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                self.failure.emit(f"입력값 오류:\n{error_info}")
+                
+                with sentry_sdk.configure_scope() as scope:
+                    scope.set_context("worker_error", {
+                        "error_type": type(e).__name__,
+                        "library": self.library,
+                        "action": self.action
+                    })
+                
+                sentry_sdk.capture_exception(e)
+
+            except (AttributeError, ImportError) as e:
+                # 코드 관련 구체적 에러 처리
+                error_info = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                self.failure.emit(f"코드 오류:\n{error_info}")
+                
+                with sentry_sdk.configure_scope() as scope:
+                    scope.set_context("worker_error", {
+                        "error_type": type(e).__name__,
+                        "library": self.library,
+                        "action": self.action
+                    })
+                
+                sentry_sdk.capture_exception(e)
+
+            except (OSError, RuntimeError) as e:
+                # 시스템 관련 구체적 에러 처리
+                error_info = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                self.failure.emit(f"시스템 오류:\n{error_info}")
+                
+                with sentry_sdk.configure_scope() as scope:
+                    scope.set_context("worker_error", {
+                        "error_type": type(e).__name__,
+                        "library": self.library,
+                        "action": self.action
+                    })
+                
+                sentry_sdk.capture_exception(e)
+
+            finally:
+                self.finished.emit()
 
     def _handle_creation(self):
         result, message = self.adapter.create_session(self.session_name, self.phone_number, self._get_code_from_gui)
