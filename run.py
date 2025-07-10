@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", message=".*SSL.*")
 
 # 3. 로깅 설정
 logging.basicConfig(
-    level=logging.INFO,  # DEBUG -> INFO로 변경 (너무 많은 로그 방지)
+    level=logging.DEBUG,  # DEBUG 레벨로 변경하여 더 자세한 로그 출력
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("veronica.log", encoding="utf-8"),
