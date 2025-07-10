@@ -64,6 +64,80 @@ class SessionManager:
     def import_from_string(self, library, api_id, api_hash, session_string, filename):
         self._start_task(library, api_id, api_hash, "", filename, "string_import", session_string)
 
+    def use_session_directly(self, session_file):
+        """
+        세션 파일을 직접 사용하는 새로운 기능
+        선택된 세션 파일로 텔레그램 클라이언트를 초기화하고 세션 문자열을 추출
+        """
+        library = self.main_window.get_selected_library()
+        api_id, api_hash = self.main_window.get_selected_api()
+        
+        if not api_id:
+            QMessageBox.warning(self.main_window, "API 선택 필요", "세션을 사용하려면 API를 선택해야 합니다.")
+            return
+            
+        session_name = session_file.replace(".session", "")
+        session_path = os.path.join(SESSIONS_DIR, session_file)
+        
+        if not os.path.exists(session_path):
+            QMessageBox.warning(self.main_window, "파일 오류", f"세션 파일 '{session_file}'을 찾을 수 없습니다.")
+            return
+            
+        # 세션 확인과 동일한 작업을 수행하지만 "사용" 목적임을 명시
+        self.main_window.log(f"📱 세션 '{session_file}'을 직접 사용합니다...")
+        self._start_task(library, api_id, api_hash, "", session_name, "check")
+
+    def get_session_info(self, session_file):
+        """
+        세션 파일의 정보를 가져오는 새로운 기능
+        파일 크기, 수정 날짜 등 메타데이터 표시
+        """
+        session_path = os.path.join(SESSIONS_DIR, session_file)
+        
+        if not os.path.exists(session_path):
+            return None
+            
+        try:
+            import datetime
+            stat = os.stat(session_path)
+            
+            info = {
+                "name": session_file,
+                "size": stat.st_size,
+                "modified": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                "path": session_path
+            }
+            
+            return info
+            
+        except Exception as e:
+            self.main_window.log(f"❌ 세션 정보 가져오기 실패: {e}", is_error=True)
+            return None
+
+    def validate_session_file(self, session_file):
+        """
+        세션 파일이 유효한지 간단히 검증하는 기능
+        """
+        session_path = os.path.join(SESSIONS_DIR, session_file)
+        
+        if not os.path.exists(session_path):
+            return False, "파일이 존재하지 않습니다"
+            
+        if os.path.getsize(session_path) == 0:
+            return False, "파일이 비어있습니다"
+            
+        # 기본적인 파일 형식 검증 (SQLite 파일인지 확인)
+        try:
+            with open(session_path, 'rb') as f:
+                header = f.read(16)
+                if header.startswith(b'SQLite format 3'):
+                    return True, "유효한 세션 파일입니다"
+                else:
+                    return False, "올바른 세션 파일 형식이 아닙니다"
+                    
+        except Exception as e:
+            return False, f"파일 검증 중 오류: {e}"
+
     def prompt_for_code(self, prompt_message):
         text, ok = QInputDialog.getText(self.main_window, "입력 필요", prompt_message)
         if ok and text:
