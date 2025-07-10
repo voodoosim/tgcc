@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
@@ -56,7 +56,8 @@ class ConfigEncryption:
     def decrypt_data(self, encrypted_data: bytes) -> Dict[str, Any]:
         """데이터 복호화"""
         decrypted = self._fernet.decrypt(encrypted_data)
-        return json.loads(decrypted.decode())
+        data: Dict[str, Any] = json.loads(decrypted.decode())
+        return data
 
     def encrypt_file(self, file_path: Path, output_path: Optional[Path] = None):
         """파일 암호화"""
@@ -148,7 +149,8 @@ class SecureConfig:
         self.save_config(config)
         return True
 
-    def get_api_credentials(self) -> list:
+    def get_api_credentials(self) -> List[Any]:
         """API 자격증명 목록 반환"""
         config = self.load_config()
-        return config.get("api_credentials", [])
+        credentials: List[Any] = config.get("api_credentials", [])
+        return credentials
