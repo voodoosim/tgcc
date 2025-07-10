@@ -30,7 +30,7 @@ class BaseAdapter(ABC):
         Connect to the database.
         Should be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement connect method")
 
     @abstractmethod
     async def close(self) -> None:
@@ -38,7 +38,7 @@ class BaseAdapter(ABC):
         Close the database connection.
         Should be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement close method")
 
     @abstractmethod
     async def init_db(self) -> None:
@@ -46,7 +46,7 @@ class BaseAdapter(ABC):
         Initialize the database schema.
         Should be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement init_db method")
 
     def get_db_path(self) -> Path:
         """
@@ -55,7 +55,6 @@ class BaseAdapter(ABC):
         Returns:
             Path: The path to the database file
         """
-        # Fix for error: Returning Any from function declared to return "Path"
         return self.db_path
 
     @abstractmethod
@@ -71,7 +70,7 @@ class BaseAdapter(ABC):
         Returns:
             bool: True if successful, False otherwise
         """
-        pass
+        raise NotImplementedError("Subclasses must implement add_attendance method")
 
     @abstractmethod
     async def check_attendance(self, user_id: int, date: datetime) -> bool:
@@ -85,7 +84,7 @@ class BaseAdapter(ABC):
         Returns:
             bool: True if user has checked in, False otherwise
         """
-        pass
+        raise NotImplementedError("Subclasses must implement check_attendance method")
 
     @abstractmethod
     async def add_points(self, user_id: int, points: int) -> int:
@@ -99,7 +98,7 @@ class BaseAdapter(ABC):
         Returns:
             int: New point balance
         """
-        pass
+        raise NotImplementedError("Subclasses must implement add_points method")
 
     @abstractmethod
     async def get_points(self, user_id: int) -> int:
@@ -112,7 +111,7 @@ class BaseAdapter(ABC):
         Returns:
             int: Current point balance
         """
-        pass
+        raise NotImplementedError("Subclasses must implement get_points method")
 
     def get_username_or_default(self, username: Optional[str]) -> str:
         """
@@ -124,7 +123,6 @@ class BaseAdapter(ABC):
         Returns:
             str: The username or a default value
         """
-        # Fix for error: Incompatible types in assignment (expression has type "str | None", variable has type "str")
         return username if username is not None else "Unknown User"
 
     @abstractmethod
@@ -138,7 +136,7 @@ class BaseAdapter(ABC):
         Returns:
             List[Dict[str, Any]]: List of attendance records
         """
-        pass
+        raise NotImplementedError("Subclasses must implement get_attendance_history method")
 
     @abstractmethod
     async def get_leaderboard(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -151,4 +149,4 @@ class BaseAdapter(ABC):
         Returns:
             List[Dict[str, Any]]: List of users with their points
         """
-        pass
+        raise NotImplementedError("Subclasses must implement get_leaderboard method")
