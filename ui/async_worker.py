@@ -25,7 +25,7 @@ class AsyncWorker(QThread):
     progress = pyqtSignal(str)
 
     def __init__(self, coro):
-        super().__init__(()
+        super().__init__()
         self.coro = coro
         self._is_running = True
         self.loop = None
