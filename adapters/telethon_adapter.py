@@ -1,11 +1,14 @@
 # adapters/telethon_adapter.py
 import os
 import asyncio
+import logging
 import sentry_sdk
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError, AuthKeyError, RPCError
 from telethon.sessions import StringSession
 from ui.constants import SESSIONS_DIR
+
+logger = logging.getLogger(__name__)
 
 # Sentry 초기화
 sentry_sdk.init(
@@ -23,6 +26,7 @@ class TelethonAdapter:
     def __init__(self, api_id, api_hash):
         self.api_id = int(api_id)
         self.api_hash = api_hash
+        logger.info(f"TelethonAdapter 초기화: API_ID={api_id}")
 
         # Sentry에 컨텍스트 정보 추가
         with sentry_sdk.configure_scope() as scope:
@@ -66,6 +70,7 @@ class TelethonAdapter:
             raise
 
     async def _create_session_async(self, session_name, phone_number, code_callback):
+        logger.info(f"세션 생성 시작: {session_name}, 전화번호: {phone_number}")
         # Sentry 트랜잭션 시작
         with sentry_sdk.start_transaction(name="create_session", op="telethon_operation") as transaction:
             transaction.set_data("session_name", session_name)
@@ -127,14 +132,30 @@ class TelethonAdapter:
             return False, f"시스템 오류: {e}"
 
     async def _check_session_async(self, session_name):
+        logger.info(f"세션 검사 시작: {session_name}")
+        session_path = os.path.join(SESSIONS_DIR, f"{session_name}.session")
+        logger.debug(f"세션 파일 경로: {session_path}")
+        logger.debug(f"파일 존재 여부: {os.path.exists(session_path)}")
+        
+        if not os.path.exists(session_path):
+            logger.error(f"세션 파일이 존재하지 않음: {session_path}")
+            return False, f"세션 파일을 찾을 수 없습니다: {session_path}"
+        
+        file_size = os.path.getsize(session_path)
+        logger.debug(f"세션 파일 크기: {file_size} bytes")
+        
         # Sentry 트랜잭션 시작
         with sentry_sdk.start_transaction(name="check_session", op="telethon_operation") as transaction:
             transaction.set_data("session_name", session_name)
 
             client = self._get_client(session_name)
             try:
+                logger.debug("텔레그램 클라이언트 연결 시도...")
                 await client.connect()
+                logger.debug("연결 성공")
+                
                 if await client.is_user_authorized():
+                    logger.info("세션 인증 성공")
                     me = await client.get_me()
                     await client.disconnect()
 
@@ -146,6 +167,7 @@ class TelethonAdapter:
 
                     return True, f"세션 유효. 사용자: @{me.username if me.username else '없음'}"
                 else:
+                    logger.warning("세션 인증 실패 - 유효하지 않은 세션")
                     await client.disconnect()
                     # 경고 이벤트 기록
                     sentry_sdk.add_breadcrumb(
@@ -154,6 +176,7 @@ class TelethonAdapter:
                     )
                     return False, "세션이 유효하지 않습니다."
             except (AuthKeyError, RPCError) as e:
+                logger.error(f"Telethon 인증 오류: {type(e).__name__}: {e}", exc_info=True)
                 # Telethon 관련 구체적 에러 처리
                 with sentry_sdk.configure_scope() as scope:
                     scope.set_context("session_check", {
@@ -164,6 +187,7 @@ class TelethonAdapter:
                 sentry_sdk.capture_exception(e)
                 return False, f"세션 인증 오류: {e}"
             except (OSError, ConnectionError, TimeoutError) as e:
+                logger.error(f"네트워크 오류: {type(e).__name__}: {e}", exc_info=True)
                 # 네트워크 관련 에러 처리
                 with sentry_sdk.configure_scope() as scope:
                     scope.set_context("session_check", {
@@ -173,6 +197,10 @@ class TelethonAdapter:
 
                 sentry_sdk.capture_exception(e)
                 return False, f"네트워크 연결 오류: {e}"
+            except Exception as e:
+                logger.error(f"예상치 못한 오류: {type(e).__name__}: {e}", exc_info=True)
+                sentry_sdk.capture_exception(e)
+                return False, f"세션 확인 중 오류: {type(e).__name__}: {e}"
 
     def check_session(self, session_name):
         """동기 방식으로 세션 확인"""
